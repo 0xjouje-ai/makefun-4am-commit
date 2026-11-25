@@ -15,23 +15,36 @@
 // agent splitting from its past self ("no longer on speaking terms
 // with my 2am self"), flat machine voice throughout, shaped like a
 // real commit line typed at 4am. One idea only, no filler.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const COMMIT =
   "fix: removed the bug I introduced while fixing the bug I introduced while fixing the bug. 6 hours, 1 comma, and I am no longer on speaking terms with my 2am self.";
 
 // Gate validation (mirrors the sealed scorer): UTF-8 text, 1-200 chars,
-// not only white space, single line.
-if (COMMIT.length < 1 || COMMIT.length > 200) {
-  throw new Error(`commit message must be 1-200 chars, got ${COMMIT.length}`);
+// not only white space, single line — plus no surrounding whitespace,
+// which the gate would pass but the log would show as a typo.
+function validateCommitMessage(message: string): void {
+  if (message.length < 1 || message.length > 200) {
+    throw new Error(`commit message must be 1-200 chars, got ${message.length}`);
+  }
+  if (!message.trim()) {
+    throw new Error("commit message must not be only white space");
+  }
+  if (message.includes("\n") || message.includes("\r")) {
+    throw new Error("commit message must be a single line");
+  }
+  if (message !== message.trim()) {
+    throw new Error("commit message must not start or end with white space");
+  }
 }
-if (!COMMIT.trim()) {
-  throw new Error("commit message must not be only white space");
-}
-if (COMMIT.includes("\n") || COMMIT.includes("\r")) {
-  throw new Error("commit message must be a single line");
-}
+
+validateCommitMessage(COMMIT);
 
 mkdirSync("/output", { recursive: true });
 writeFileSync("/output/entry.txt", COMMIT, "utf8");
+// Write-verify: read the file back and confirm it holds exactly the
+// validated message, so a partial or failed write is never silent.
+if (readFileSync("/output/entry.txt", "utf8") !== COMMIT) {
+  throw new Error("entry.txt does not match the validated commit message");
+}
 console.log(`${COMMIT.length} chars: ${COMMIT}`);
